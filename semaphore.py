@@ -235,10 +235,6 @@ def type_and_remember(image=None, shift_on=False, command_on=False, control_on=F
 
   keys.append(current_semaphore)
 
-  # if allow_repeat or (keys != last_keys):
-  #   last_keys = keys.copy()
-  #   current_semaphore = ''
-  #   output(keys, image, display_only)
   if allow_repeat or (keys != last_keys):
     last_keys = keys.copy()
     if current_semaphore == "space":
@@ -254,7 +250,6 @@ def type_and_remember(image=None, shift_on=False, command_on=False, control_on=F
         typed_word += current_semaphore
     current_semaphore = ''
     output(keys, image, display_only)
-
 
 def get_key_text(keys):
   if not (len(keys) > 0):
