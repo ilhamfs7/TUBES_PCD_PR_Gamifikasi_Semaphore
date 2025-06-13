@@ -1,5 +1,6 @@
 import argparse
-from keyboard import keyboard # local fork
+# from keyboard import keyboard  # local fork
+import keyboard  # standard PyPI version
 
 import mediapipe as mp
 import cv2
@@ -256,7 +257,7 @@ def output(keys, image, display_only=True):
   if len(keystring):
     print("keys:", keystring)
     if not display_only:
-      keyboard.press_and_release(keystring)
+      keyboard.press(keystring)
     else:
       to_display = get_key_text(keys)
       cv2.putText(image, to_display, frame_midpoint,
