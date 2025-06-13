@@ -228,14 +228,34 @@ def is_jumping(hipL, hipR):
 
     return jump_up and get_down
 
-def is_mouth_covered(mouth, palms):
-    if is_missing(palms):
-        return False
-    dxL = (mouth[0]['x'] - palms[0]['x'])
-    dyL = (mouth[0]['y'] - palms[0]['y'])
-    dxR = (mouth[1]['x'] - palms[1]['x'])
-    dyR = (mouth[1]['y'] - palms[1]['y'])
-    return all(abs(d) < MOUTH_COVER_THRESHOLD for d in [dxL, dyL, dxR, dyR])
+def is_mouth_covered(mouth, palms, hands=[]):
+    # Relaxed threshold - lebih besar dari 0.03
+    RELAXED_THRESHOLD = 0.08  
+    
+    mouth_center_x = (mouth[0]['x'] + mouth[1]['x']) / 2
+    mouth_center_y = (mouth[0]['y'] + mouth[1]['y']) / 2
+    
+    # Cek palm dari pose landmarks (satu tangan cukup)
+    if palms and len(palms) >= 2:
+        for palm in palms:
+            if palm['visibility'] > VISIBILITY_THRESHOLD:
+                dx = abs(mouth_center_x - palm['x'])
+                dy = abs(mouth_center_y - palm['y'])
+                if dx < RELAXED_THRESHOLD and dy < RELAXED_THRESHOLD:
+                    return True
+    
+    # Tambahan: Cek dari hand landmarks jika ada (lebih akurat)
+    if hands:
+        for hand in hands:
+            if len(hand) > 9:  # Pastikan ada cukup landmarks
+                # Index 9 adalah middle finger MCP (tengah telapak tangan)
+                hand_center = hand[9]  
+                dx = abs(mouth_center_x - hand_center['x'])
+                dy = abs(mouth_center_y - hand_center['y'])
+                if dx < RELAXED_THRESHOLD and dy < RELAXED_THRESHOLD:
+                    return True
+    
+    return False
 
 def is_squatting(hipL, kneeL, hipR, kneeR):
     if is_missing([hipL, kneeL, hipR, kneeR]):
@@ -372,6 +392,13 @@ def type_and_remember(image=None, shift_on=False, command_on=False, control_on=F
         
         current_semaphore = ''
         output(keys, image, display_only)
+
+def handle_backspace():
+    global typed_word
+    if typed_word:
+        typed_word = typed_word[:-1]
+        print(f"Backspace - Typed: {typed_word}")
+    return True
 
 def get_key_text(keys):
     if not (len(keys) > 0):
@@ -690,10 +717,11 @@ def main():
 
                             # cover mouth: backspace
                             mouth = (body[9], body[10])
-                            palms = (body[19], body[20])
-                            if is_mouth_covered(mouth, palms):
-                                output(['backspace'], image, DISPLAY_ONLY)
-
+                            palms = [body[19], body[20]]
+                            if is_mouth_covered(mouth, palms, hands):
+                                handle_backspace()  # Fungsi ini sudah handle typed_word
+                                output(['backspace'], image, DISPLAY_ONLY)  # Cukup sekali
+                            
                             # command: left leg lift
                             legL = (body[23], body[25], body[27]) # L hip, knee, ankle
                             command_on = is_leg_lifted(legL)
