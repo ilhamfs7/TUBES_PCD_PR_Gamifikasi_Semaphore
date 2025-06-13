@@ -9,6 +9,8 @@ from scipy.spatial import distance as dist
 from math import atan, atan2, pi, degrees
 from datetime import datetime
 
+# run pake body_landmark = python semaphore.py --landmarks yes
+
 DEFAULT_LANDMARKS_STYLE = mp.solutions.drawing_styles.get_default_pose_landmarks_style()
 DEFAULT_HAND_CONNECTIONS_STYLE = mp.solutions.drawing_styles.get_default_hand_connections_style()
 
@@ -64,8 +66,8 @@ SEMAPHORES = {
   (180, 45): {'a': "y"},
   (180, 225): {'a': "z"},
   (90, 90): {'a': "space", 'n': "enter"},
-  (135, 90): {'a': "tab"}, # custom "numerals" replacement
-  (225, 45): {'a': "escape"}, # custom "cancel" replacement
+  # (135, 90): {'a': "tab"}, # custom "numerals" replacement
+  # (225, 45): {'a': "escape"}, # custom "cancel" replacement
 }
 
 leg_arrow_angles = {
@@ -95,6 +97,8 @@ frame_midpoint = (0,0)
 
 current_semaphore = ''
 last_keys = []
+typed_word = ""
+target_word = "aku"
 
 def get_angle(a, b, c):
   ang = degrees(atan2(c['y']-b['y'], c['x']-b['x']) - atan2(a['y']-b['y'], a['x']-b['x']))
@@ -216,7 +220,7 @@ def type_semaphore(armL_angle, armR_angle, image, shift_on, numerals, command_on
 
 def type_and_remember(image=None, shift_on=False, command_on=False, control_on=False,
   display_only=True, allow_repeat=False):
-  global current_semaphore, last_keys
+  global current_semaphore, last_keys, typed_word
 
   if len(current_semaphore) == 0:
     return
@@ -231,10 +235,26 @@ def type_and_remember(image=None, shift_on=False, command_on=False, control_on=F
 
   keys.append(current_semaphore)
 
+  # if allow_repeat or (keys != last_keys):
+  #   last_keys = keys.copy()
+  #   current_semaphore = ''
+  #   output(keys, image, display_only)
   if allow_repeat or (keys != last_keys):
     last_keys = keys.copy()
+    if current_semaphore == "space":
+        print("kata:", typed_word)
+        if typed_word == target_word:
+            print("✅ Benar!")
+        else:
+            print("❌ Salah! Coba lagi.")
+        if not display_only:
+            keyboard.write(typed_word)
+        typed_word = ""  # reset buffer
+    else:
+        typed_word += current_semaphore
     current_semaphore = ''
     output(keys, image, display_only)
+
 
 def get_key_text(keys):
   if not (len(keys) > 0):
@@ -255,7 +275,7 @@ def get_key_text(keys):
 def output(keys, image, display_only=True):
   keystring = '+'.join(keys)
   if len(keystring):
-    print("keys:", keystring)
+    # print("keys:", keystring)
     if not display_only:
       keyboard.press(keystring)
     else:
@@ -393,7 +413,8 @@ def main():
                 output([leg_arrow + ' arrow'], image, DISPLAY_ONLY)
 
           # shift: both hands open
-          shift_on = len(hands) > 0
+          # shift_on = len(hands) > 0
+          shift_on = False # biar perintah shift ga jalan dulu
           min_finger_reach = FINGER_MOUTH_RATIO * mouth_width
           palmL, palmR = body[17], body[18]
           for hand in hands:
