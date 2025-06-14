@@ -1,1 +1,4 @@
 venv/
+02_FastAPI_Interface/app.log
+02_FastAPI_Interface/semaphore_stats.json
+__pycache__/

@@ -1,4 +1,8 @@
-mediapipe
+fastapi
+uvicorn
+streamlit
 opencv-python
+mediapipe
 scipy
-keyboard
+websocket-client
+streamlit-webrtc

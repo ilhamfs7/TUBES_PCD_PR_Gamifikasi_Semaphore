@@ -149,6 +149,9 @@ challenge_words = []
 challenge_index = 0
 time_limit = 60  # untuk mode time attack
 words_completed_in_session = 0
+last_semaphore = None  # Tambahan untuk melacak huruf terakhir
+last_semaphore_time = 0  # Tambahan untuk melacak waktu deteksi terakhir
+COOLDOWN_TIME = 1.0
 
 def get_angle(a, b, c):
     ang = degrees(atan2(c['y']-b['y'], c['x']-b['x']) - atan2(a['y']-b['y'], a['x']-b['x']))
@@ -256,26 +259,26 @@ def is_hand_open(thumb, forefinger, pinky, palmL, palmR, min_finger_reach):
     pinky_out = is_finger_out(pinky, palmL, palmR, min_finger_reach)
     return thumb_out and forefinger_out and pinky_out
 
-def type_semaphore(armL_angle, armR_angle, image, shift_on, numerals, command_on, control_on,
-                   display_only, allow_repeat):
-    global current_semaphore
-
+def type_semaphore(armL_angle, armR_angle, image, shift_on, numerals, command_on, control_on, display_only, allow_repeat):
+    global current_semaphore, last_semaphore, last_semaphore_time
     arm_match = SEMAPHORES.get((armL_angle, armR_angle), '')
     if arm_match:
-        current_semaphore = arm_match.get('n', '') if numerals else arm_match.get('a', '')
+        new_semaphore = arm_match.get('n', '') if numerals else arm_match.get('a', '')
+        current_time = time.time()
+        # Cek apakah huruf sama dengan huruf terakhir
+        if allow_repeat and new_semaphore == last_semaphore and (current_time - last_semaphore_time) < COOLDOWN_TIME:
+            return False  # Skip jika huruf sama dan belum lewat cooldown
+        current_semaphore = new_semaphore
+        last_semaphore = current_semaphore
+        last_semaphore_time = current_time
         type_and_remember(image, shift_on, command_on, control_on, display_only, allow_repeat)
         return current_semaphore
-
     return False
 
-def type_and_remember(image=None, shift_on=False, command_on=False, control_on=False,
-                      display_only=True, allow_repeat=False):
-    global current_semaphore, last_keys, typed_word, target_word, start_time
-    global words_completed_in_session, game_mode, challenge_words, challenge_index
-
+def type_and_remember(image=None, shift_on=False, command_on=False, control_on=False, display_only=True, allow_repeat=False):
+    global current_semaphore, last_keys, typed_word, target_word, start_time, words_completed_in_session, game_mode, challenge_words, challenge_index
     if len(current_semaphore) == 0 or not target_word:
         return
-
     keys = []
     if shift_on:
         keys.append('shift')
@@ -283,41 +286,23 @@ def type_and_remember(image=None, shift_on=False, command_on=False, control_on=F
         keys.append('command')
     if control_on:
         keys.append('control')
-
     keys.append(current_semaphore)
-
     if allow_repeat or (keys != last_keys):
         last_keys = keys.copy()
         if current_semaphore == "space":
-            # Hitung waktu yang dibutuhkan
             word_time = time.time() - start_time if start_time else 0
-            
-            print(f"\nKata: {typed_word}")
             if typed_word == target_word:
-                print("✅ Benar!")
-                
-                # Update statistics
                 player_stats["total_words"] += 1
                 player_stats["streak"] += 1
                 words_completed_in_session += 1
-                
-                # Update max streak
                 if player_stats["streak"] > player_stats["max_streak"]:
                     player_stats["max_streak"] = player_stats["streak"]
-                
-                # Calculate rewards
                 base_exp = EXPERIENCE_PER_WORD
                 streak_bonus = min(player_stats["streak"] * STREAK_BONUS, 200)
                 speed_bonus = max(0, 50 - int(word_time)) if word_time > 0 else 0
                 total_exp = base_exp + streak_bonus + speed_bonus
-                
                 add_experience(total_exp)
                 player_stats["coins"] += 10 + (player_stats["streak"] // 5)
-                
-                print(f"💰 +{total_exp} XP, +{10 + (player_stats['streak'] // 5)} coins")
-                print(f"⚡ Streak: {player_stats['streak']} | Waktu: {word_time:.1f}s")
-                
-                # Check achievements
                 if player_stats["total_words"] == 1:
                     check_achievement("first_word")
                 if player_stats["streak"] == 5:
@@ -326,50 +311,32 @@ def type_and_remember(image=None, shift_on=False, command_on=False, control_on=F
                     check_achievement("streak_10")
                 if word_time <= 10 and word_time > 0:
                     check_achievement("speed_demon")
-                
-                # Update accuracy
                 player_stats["accuracy"] = calculate_accuracy()
                 if player_stats["accuracy"] >= 95:
                     check_achievement("accuracy_95")
                 if player_stats["accuracy"] >= 100:
                     check_achievement("accuracy_100")
-                
-                # Generate next word based on game mode
                 if game_mode == "challenge":
                     challenge_index += 1
                     if challenge_index < len(challenge_words):
                         target_word = challenge_words[challenge_index]
-                        print(f"🎯 Kata berikutnya: {target_word}")
                     else:
-                        print("🎉 CHALLENGE SELESAI!")
-                        print(f"Total kata: {len(challenge_words)}")
-                        add_experience(100)  # Bonus completion
                         game_mode = "practice"
                         target_word = get_random_word(current_difficulty)
+                        add_experience(100)
                 else:
                     target_word = get_random_word(current_difficulty)
-                
             else:
-                print("❌ Salah! Coba lagi.")
                 player_stats["streak"] = 0
                 player_stats["total_words"] += 1
                 player_stats["accuracy"] = calculate_accuracy()
-                
-            if not display_only and typed_word:
-                try:
-                    keyboard.write(typed_word)
-                except Exception as e:
-                    print(f"Error typing word: {e}")
-            
             typed_word = ""
             start_time = time.time()
             save_player_stats()
-            
         else:
             typed_word += current_semaphore
             if not start_time:
                 start_time = time.time()
-        
         current_semaphore = ''
         output(keys, image, display_only)
 
@@ -492,6 +459,21 @@ def generate_challenge():
     
     print(f"🎯 Challenge Mode: {num_words} kata tingkat {current_difficulty}")
     print(f"Kata-kata: {', '.join(challenge_words)}")
+
+def start_game_mode(mode, difficulty):
+    global game_mode, current_difficulty, target_word, typed_word, start_time, challenge_words, challenge_index
+    game_mode = mode
+    current_difficulty = difficulty
+    typed_word = ""
+    if mode == "practice":
+        target_word = get_random_word(difficulty)
+        start_time = time.time()
+    elif mode == "challenge":
+        num_words = 5 if difficulty == "mudah" else 8 if difficulty == "sedang" else 10
+        challenge_words = [get_random_word(difficulty) for _ in range(num_words)]
+        challenge_index = 0
+        target_word = challenge_words[0]
+        start_time = time.time()
 
 def output(keys, image, display_only=True):
     keystring = '+'.join(keys)
